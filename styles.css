@@ -22,57 +22,91 @@ body {
   background-color: var(--bg-color);
   color: var(--text-color);
   line-height: 1.5;
-  padding: 20px;
+  padding: 10px;
+}
+
+@media (min-width: 768px) {
+  body {
+    padding: 20px;
+  }
 }
 
 .app-container {
+  width: 100%;
   max-width: 1000px;
   margin: 0 auto;
 }
 
+/* Cabeçalho Responsivo */
 .app-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 15px;
   margin-bottom: 20px;
   background: white;
-  padding: 20px;
+  padding: 16px;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .header-title h1 {
   color: var(--primary-color);
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .header-title h1 {
+    font-size: 1.5rem;
+  }
 }
 
 .header-title p {
   color: var(--secondary-color);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
-/* Abas */
+@media (min-width: 768px) {
+  .header-title p {
+    font-size: 0.9rem;
+  }
+}
+
+/* Navegação por Abas Flexível */
 .nav-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
   margin-bottom: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab-btn {
   background: #ebecf0;
   border: none;
-  padding: 10px 16px;
+  padding: 10px 14px;
   border-radius: 6px 6px 0 0;
   font-weight: 600;
   cursor: pointer;
   color: var(--secondary-color);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 0.85rem;
   transition: background 0.2s;
+}
+
+@media (min-width: 768px) {
+  .tab-btn {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
 }
 
 .tab-btn.active {
@@ -92,13 +126,19 @@ body {
 .card {
   background: var(--card-bg);
   border-radius: 8px;
-  padding: 24px;
+  padding: 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   border: 1px solid var(--border-color);
 }
 
+@media (min-width: 768px) {
+  .card {
+    padding: 24px;
+  }
+}
+
 h2 {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   margin-bottom: 16px;
   color: var(--secondary-color);
   display: flex;
@@ -106,14 +146,22 @@ h2 {
   gap: 8px;
 }
 
+@media (min-width: 768px) {
+  h2 {
+    font-size: 1.15rem;
+  }
+}
+
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 15px;
 }
 
-@media(max-width: 600px) {
-  .form-row { grid-template-columns: 1fr; }
+@media (min-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .form-group {
@@ -137,18 +185,29 @@ input[type="number"],
 select,
 textarea {
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 12px; /* Aumentado para facilitar o toque em mobile */
   border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 0.9rem;
+  background-color: #fff;
 }
 
-textarea { resize: vertical; }
+textarea {
+  resize: vertical;
+}
 
 .button-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 10px;
+}
+
+@media (max-width: 480px) {
+  .button-group .btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .right-align {
@@ -156,13 +215,14 @@ textarea { resize: vertical; }
 }
 
 .btn {
-  padding: 8px 16px;
+  padding: 10px 16px;
   border: none;
   border-radius: 4px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   font-size: 0.9rem;
   transition: background 0.2s;
@@ -182,34 +242,53 @@ textarea { resize: vertical; }
   border: none;
   color: var(--danger-color);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.1rem;
+  padding: 6px;
 }
 
 .placeholder {
   text-align: center;
-  padding: 40px;
+  padding: 30px 15px;
   color: #8993a4;
 }
 
-.placeholder p { margin-top: 10px; }
+.placeholder p {
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
 
 .info-header {
   background-color: #f4f5f7;
-  padding: 10px 14px;
+  padding: 12px;
   border-radius: 4px;
   margin-bottom: 14px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 6px;
 }
 
+@media (min-width: 600px) {
+  .info-header {
+    flex-direction: row;
+    justify-content: space-between;
+    font-size: 0.9rem;
+  }
+}
+
+/* Tabelas Responsivas com Rolagem Horizontal */
 .table-container {
+  width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin-bottom: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
 }
 
 .table-apontamentos, .table-totais {
   width: 100%;
+  min-width: 600px; /* Garante espaço para os inputs e selects sem esmagar */
   border-collapse: collapse;
 }
 
@@ -218,7 +297,14 @@ textarea { resize: vertical; }
   padding: 10px 12px;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+}
+
+@media (min-width: 768px) {
+  .table-apontamentos th, .table-apontamentos td,
+  .table-totais th, .table-totais td {
+    font-size: 0.9rem;
+  }
 }
 
 .table-apontamentos th, .table-totais th {
@@ -228,13 +314,21 @@ textarea { resize: vertical; }
 
 .status-box {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px;
   background-color: #f4f5f7;
   border-radius: 4px;
   margin-bottom: 16px;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+}
+
+@media (min-width: 500px) {
+  .status-box {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 }
 
 .badge {
@@ -242,6 +336,7 @@ textarea { resize: vertical; }
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: bold;
+  text-align: center;
 }
 .badge-success { background-color: #e3fcef; color: #006644; }
 .badge-warning { background-color: #fffae6; color: #826100; }
@@ -265,7 +360,7 @@ textarea { resize: vertical; }
 .hidden { display: none !important; }
 .text-center { text-align: center; }
 
-/* Modal */
+/* Modal Responsivo */
 .modal {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -274,14 +369,18 @@ textarea { resize: vertical; }
   justify-content: center;
   align-items: center;
   z-index: 100;
+  padding: 15px;
 }
 
 .modal-content {
   background: white;
-  padding: 24px;
+  padding: 20px;
   border-radius: 8px;
   width: 100%;
   max-width: 450px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-desc {
@@ -292,7 +391,14 @@ textarea { resize: vertical; }
 
 .modal-actions {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column-reverse;
   gap: 10px;
   margin-top: 16px;
+}
+
+@media (min-width: 400px) {
+  .modal-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
 }

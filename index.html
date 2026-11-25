@@ -8,20 +8,49 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+  <!-- Tela de Login (Oculta se já estiver autenticado) -->
+  <div id="modal-login" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+      <h3><i class="fa-solid fa-lock"></i> Acesso ao Sistema</h3>
+      <p class="modal-desc">Entre com suas credenciais para acessar seu perfil.</p>
+      <form id="form-login">
+        <div class="form-group">
+          <label for="login-usuario">Usuário</label>
+          <input type="text" id="login-usuario" placeholder="Ex: funcionario, rh, coordenador" required>
+        </div>
+        <div class="form-group">
+          <label for="login-senha">Senha</label>
+          <input type="password" id="login-senha" placeholder="******" required>
+        </div>
+        <div class="button-group right-align" style="margin-top: 16px;">
+          <button type="submit" class="btn btn-primary" style="width: 100%;">Entrar</button>
+        </div>
+      </form>
+      <div style="margin-top: 15px; font-size: 0.8rem; color: var(--secondary-color); text-align: center;">
+        <p><strong>Perfis de teste:</strong></p>
+        <p>Funcionário: <code>funcionario / 123</code></p>
+        <p>RH: <code>rh / 123</code> | Coordenador: <code>coordenador / 123</code></p>
+      </div>
+    </div>
+  </div>
+
   <div class="app-container">
     <header class="app-header">
       <div class="header-title">
         <h1><i class="fa-solid fa-clock-rotate-left"></i> Sistema de Apontamento de Horas</h1>
-        <p>Converta relatos diários em lançamentos precisos para o Jira</p>
+        <p>Perfil Logado: <strong id="info-perfil-nome" style="color: var(--primary-color);">Nenhum</strong></p>
       </div>
-      <button id="btn-config" class="btn btn-secondary"><i class="fa-solid fa-gear"></i> Configurações Jira</button>
+      <div style="display: flex; gap: 8px;">
+        <button id="btn-config" class="btn btn-secondary hidden"><i class="fa-solid fa-gear"></i> Jira</button>
+        <button id="btn-logout" class="btn btn-secondary"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+      </div>
     </header>
 
-    <!-- Navegação por Abas -->
-    <nav class="nav-tabs">
-      <button class="tab-btn active" data-tab="tab-novo"><i class="fa-solid fa-pen-to-square"></i> Novo Relato</button>
-      <button class="tab-btn" data-tab="tab-validacao"><i class="fa-solid fa-list-check"></i> Validação Diária</button>
-      <button class="tab-btn" data-tab="tab-relatorio"><i class="fa-solid fa-chart-bar"></i> Relatório Geral</button>
+    <!-- Navegação por Abas (Dinâmica por Perfil) -->
+    <nav class="nav-tabs" id="nav-abas">
+      <button class="tab-btn active" data-tab="tab-novo" data-perfis="funcionario,coordenador"><i class="fa-solid fa-pen-to-square"></i> Novo Relato</button>
+      <button class="tab-btn" data-tab="tab-validacao" data-perfis="funcionario,coordenador"><i class="fa-solid fa-list-check"></i> Validação Diária</button>
+      <button class="tab-btn" data-tab="tab-relatorio" data-perfis="rh,coordenador"><i class="fa-solid fa-chart-bar"></i> Relatório Mensal / Geral</button>
     </nav>
 
     <!-- Aba 1: Novo Relato -->
@@ -41,7 +70,12 @@
           </div>
 
           <div class="form-group">
-            <label for="mensagem">Relato Livre do Dia</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label for="mensagem">Relato Livre do Dia</label>
+              <button type="button" id="btn-mic" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;">
+                <i class="fa-solid fa-microphone"></i> Falar Relato
+              </button>
+            </div>
             <textarea id="mensagem" rows="6" placeholder="Ex: Hoje passei 2 horas na reunião do Pix, depois fiquei 4 horas desenvolvendo a tela do aplicativo e no final do dia gastei 2 horas resolvendo o erro do suporte." required></textarea>
           </div>
 
@@ -108,23 +142,32 @@
       </div>
     </section>
 
-    <!-- Aba 3: Relatório Geral -->
+    <!-- Aba 3: Relatório Mensal e Geral -->
     <section id="tab-relatorio" class="tab-content">
       <div class="card">
-        <h2><i class="fa-solid fa-chart-column"></i> Total Acumulado por Colaborador</h2>
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <h2 style="margin-bottom: 0;"><i class="fa-solid fa-calendar-check"></i> Relatório Consolidado Mês a Mês</h2>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label for="filtro-mes" style="font-size: 0.85rem; font-weight: 600; color: var(--secondary-color);">Filtrar Mês:</label>
+            <input type="month" id="filtro-mes" style="width: auto; padding: 6px 10px;">
+            <button type="button" id="btn-limpar-filtro-mes" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.8rem;">Todos</button>
+          </div>
+        </div>
+
         <div class="table-container">
           <table class="table-totais">
             <thead>
               <tr>
+                <th>Mês / Ano</th>
                 <th>Colaborador</th>
-                <th>Total de Registros</th>
-                <th>Horas Acumuladas</th>
+                <th>Dias Apontados</th>
+                <th>Horas Consolidadas</th>
                 <th>Média Diária</th>
               </tr>
             </thead>
             <tbody id="totais-tabela-body">
               <tr>
-                <td colspan="4" class="text-center">Nenhum dado registrado até o momento.</td>
+                <td colspan="5" class="text-center">Nenhum dado registrado até o momento.</td>
               </tr>
             </tbody>
           </table>

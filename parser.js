@@ -10,7 +10,7 @@ const NUMEROS_POR_EXTENSO = {
   "cinco": 5, "seis": 6, "sete": 7, "oito": 8
 };
 
-const REGEX_DURACAO = /(?:(?<h1 layout>\d{1,2})\s*h\s*(?<m1>\d{2})(?!\d)(?!\s*horas?)|(?<umameia>(?:uma|um)\s+hora\s+e\s+meia)|(?<meiahora>meia\s+hora)|(?<num>\d+(?:[.,]\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito)\s*(?<unid>horas?|hrs?|hs?|minutos?|mins?)\b(?:\s*e\s*(?:(?<meia>meia)|(?<m2>\d{1,2})\s*min\w*))?)/gi;
+const REGEX_DURACAO = /(?:(?<h1>\d{1,2})\s*h\s*(?<m1>\d{2})(?!\d)(?!\s*horas?)|(?<umameia>(?:uma|um)\s+hora\s+e\s+meia)|(?<meiahora>meia\s+hora)|(?<num>\d+(?:[.,]\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito)\s*(?<unid>horas?|hrs?|hs?|minutos?|mins?)\b(?:\s*e\s*(?:(?<meia>meia)|(?<m2>\d{1,2})\s*min\w*))?)/gi;
 
 function minutosDoMatch(match) {
   const groups = match.groups || {};

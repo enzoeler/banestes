@@ -8,29 +8,37 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-  <!-- Tela de Login (Oculta se já estiver autenticado) -->
+  <!-- Modal de Autenticação (Login / Cadastro) -->
   <div id="modal-login" class="modal">
     <div class="modal-content" style="max-width: 400px;">
-      <h3><i class="fa-solid fa-lock"></i> Acesso ao Sistema</h3>
-      <p class="modal-desc">Entre com suas credenciais para acessar seu perfil.</p>
-      <form id="form-login">
+      <h3 id="auth-titulo"><i class="fa-solid fa-lock"></i> Entrar no Sistema</h3>
+      <p class="modal-desc" id="auth-desc">Informe suas credenciais para acessar o painel.</p>
+      
+      <form id="form-auth">
         <div class="form-group">
-          <label for="login-usuario">Usuário</label>
-          <input type="text" id="login-usuario" placeholder="Ex: funcionario, rh, coordenador" required>
+          <label for="auth-usuario">Nome de Usuário</label>
+          <input type="text" id="auth-usuario" placeholder="Ex: ana.silva" required>
         </div>
         <div class="form-group">
-          <label for="login-senha">Senha</label>
-          <input type="password" id="login-senha" placeholder="******" required>
+          <label for="auth-senha">Senha</label>
+          <input type="password" id="auth-senha" placeholder="******" required>
         </div>
-        <div class="button-group right-align" style="margin-top: 16px;">
-          <button type="submit" class="btn btn-primary" style="width: 100%;">Entrar</button>
+        
+        <!-- Campo visível apenas no modo Cadastro -->
+        <div class="form-group hidden" id="grupo-perfil">
+          <label for="auth-perfil">Perfil de Acesso</label>
+          <select id="auth-perfil">
+            <option value="funcionario">Funcionário</option>
+            <option value="rh">RH</option>
+            <option value="coordenador">Coordenador</option>
+          </select>
+        </div>
+
+        <div class="button-group" style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+          <button type="submit" id="btn-submit-auth" class="btn btn-primary" style="width: 100%;">Entrar</button>
+          <button type="button" id="btn-toggle-modo" class="btn btn-secondary" style="width: 100%;">Não tem conta? Cadastre-se</button>
         </div>
       </form>
-      <div style="margin-top: 15px; font-size: 0.8rem; color: var(--secondary-color); text-align: center;">
-        <p><strong>Perfis de teste:</strong></p>
-        <p>Funcionário: <code>funcionario / 123</code></p>
-        <p>RH: <code>rh / 123</code> | Coordenador: <code>coordenador / 123</code></p>
-      </div>
     </div>
   </div>
 
@@ -38,7 +46,7 @@
     <header class="app-header">
       <div class="header-title">
         <h1><i class="fa-solid fa-clock-rotate-left"></i> Sistema de Apontamento de Horas</h1>
-        <p>Perfil Logado: <strong id="info-perfil-nome" style="color: var(--primary-color);">Nenhum</strong></p>
+        <p>Usuário: <strong id="info-perfil-nome" style="color: var(--primary-color);">Nenhum</strong></p>
       </div>
       <div style="display: flex; gap: 8px;">
         <button id="btn-config" class="btn btn-secondary hidden"><i class="fa-solid fa-gear"></i> Jira</button>

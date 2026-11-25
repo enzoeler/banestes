@@ -1,8 +1,23 @@
 const service = new ApontamentoService();
 let registroAtual = null;
 
+// Definição de Usuários e Permissões
+const USUARIOS_SISTEMA = {
+  "funcionario": { senha: "123", perfil: "funcionario", nome: "Funcionário Padrão" },
+  "rh": { senha: "123", perfil: "rh", nome: "Analista de RH" },
+  "coordenador": { senha: "123", perfil: "coordenador", nome: "Coordenador de Projetos" }
+};
+
 function fmtHoras(minutos) {
   return `${(minutos / 60).toFixed(1)}h`;
+}
+
+function fmtMesAno(mesAnoStr) {
+  if (!mesAnoStr) return "";
+  const [ano, mes] = mesAnoStr.split("-");
+  const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const nomeMes = meses[parseInt(mes, 10) - 1] || mes;
+  return `${nomeMes}/${ano}`;
 }
 
 function statusJornada(total) {
@@ -17,33 +32,157 @@ function statusJornada(total) {
 
 // Elementos DOM
 const campoDia = document.getElementById("dia");
-campoDia.valueAsDate = new Date();
+const filtroMes = document.getElementById("filtro-mes");
+const modalLogin = document.getElementById("modal-login");
+const formLogin = document.getElementById("form-login");
+const infoPerfilNome = document.getElementById("info-perfil-nome");
+const btnConfig = document.getElementById("btn-config");
 
-// Navegação por Abas
-document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
+if (campoDia) {
+  campoDia.value = new Date().toISOString().split('T')[0];
+}
+
+// Controle de Sessão e Login
+function verificarSessao() {
+  const usuarioSalvo = localStorage.getItem("sessao_usuario");
+  if (usuarioSalvo && USUARIOS_SISTEMA[usuarioSalvo]) {
+    const userObj = USUARIOS_SISTEMA[usuarioSalvo];
+    modalLogin.classList.add("hidden");
+    infoPerfilNome.textContent = `${userObj.nome} (${userObj.perfil.toUpperCase()})`;
+    
+    // Configura visibilidade baseada no perfil
+    aplicarPermissoesPerfil(userObj.perfil);
+  } else {
+    modalLogin.classList.remove("hidden");
+  }
+}
+
+function aplicarPermissoesPerfil(perfil) {
+  const botoesAbas = document.querySelectorAll(".tab-btn");
+  let primeiraVisivel = null;
+
+  botoesAbas.forEach(btn => {
+    const perfisPermitidos = btn.getAttribute("data-perfis").split(",");
+    if (perfisPermitidos.includes(perfil)) {
+      btn.style.display = "inline-flex";
+      if (!primeiraVisivel) primeiraVisivel = btn;
+    } else {
+      btn.style.display = "none";
+    }
+  });
+
+  // Apenas Coordenador vê o botão de Configuração do Jira
+  if (btnConfig) {
+    if (perfil === "coordenador") {
+      btnConfig.classList.remove("hidden");
+    } else {
+      btnConfig.classList.add("hidden");
+    }
+  }
+
+  // Ativa a primeira aba visível para o perfil
+  if (primeiraVisivel) {
+    const abaAlvo = primeiraVisivel.getAttribute("data-tab");
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
     
-    btn.classList.add("active");
-    document.getElementById(btn.dataset.tab).classList.add("active");
+    primeiraVisivel.classList.add("active");
+    const conteudo = document.getElementById(abaAlvo);
+    if (conteudo) conteudo.classList.add("active");
+
+    if (abaAlvo === "tab-relatorio") {
+      atualizarTabelaGeral();
+    }
+  }
+}
+
+formLogin.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const user = document.getElementById("login-usuario").value.trim().toLowerCase();
+  const pass = document.getElementById("login-senha").value.trim();
+
+  if (USUARIOS_SISTEMA[user] && USUARIOS_SISTEMA[user].senha === pass) {
+    localStorage.setItem("sessao_usuario", user);
+    verificarSessao();
+    document.getElementById("login-senha").value = "";
+  } else {
+    alert("Usuário ou senha inválidos! Tente 'funcionario', 'rh' ou 'coordenador' com senha '123'.");
+  }
+});
+
+document.getElementById("btn-logout").addEventListener("click", () => {
+  localStorage.removeItem("sessao_usuario");
+  window.location.reload();
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  verificarSessao();
+
+  // Navegação por Abas
+  const botoesAbas = document.querySelectorAll(".tab-btn");
+  botoesAbas.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const abaAlvo = btn.getAttribute("data-tab");
+
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      
+      btn.classList.add("active");
+      const conteudo = document.getElementById(abaAlvo);
+      if (conteudo) conteudo.classList.add("active");
+
+      if (abaAlvo === "tab-relatorio") {
+        atualizarTabelaGeral();
+      }
+    });
   });
+
+  if (filtroMes) {
+    filtroMes.addEventListener("change", () => atualizarTabelaGeral());
+  }
+
+  const btnLimparFiltro = document.getElementById("btn-limpar-filtro-mes");
+  if (btnLimparFiltro) {
+    btnLimparFiltro.addEventListener("click", () => {
+      if (filtroMes) filtroMes.value = "";
+      atualizarTabelaGeral();
+    });
+  }
+
+  atualizarTabelaGeral();
 });
 
 function trocarAba(idAba) {
   document.querySelectorAll(".tab-btn").forEach(b => {
-    b.classList.toggle("active", b.dataset.tab === idAba);
+    if (b.dataset.tab === idAba && b.style.display !== "none") {
+      b.classList.add("active");
+    } else {
+      b.classList.remove("active");
+    }
   });
   document.querySelectorAll(".tab-content").forEach(c => {
     c.classList.toggle("active", c.id === idAba);
   });
+  if (idAba === "tab-relatorio") {
+    atualizarTabelaGeral();
+  }
 }
 
 // Renderização da Validação
 function renderizarValidacao(registro) {
   registroAtual = registro;
-  document.getElementById("validacao-placeholder").classList.add("hidden");
-  document.getElementById("validacao-conteudo").classList.remove("hidden");
+  const placeholder = document.getElementById("validacao-placeholder");
+  const conteudo = document.getElementById("validacao-conteudo");
+
+  if (!registro || registro.lancamentos.length === 0) {
+    placeholder.classList.remove("hidden");
+    conteudo.classList.add("hidden");
+    return;
+  }
+
+  placeholder.classList.add("hidden");
+  conteudo.classList.remove("hidden");
 
   document.getElementById("val-colaborador").textContent = registro.colaborador;
   document.getElementById("val-dia").textContent = registro.dia.split("-").reverse().join("/");
@@ -54,7 +193,6 @@ function renderizarValidacao(registro) {
   registro.lancamentos.forEach((lanc, index) => {
     const tr = document.createElement("tr");
 
-    // Select de Cards
     let optionsCard = `<option value="">-- Não Identificado --</option>`;
     CARDS.forEach(c => {
       const selected = (lanc.card && lanc.card.chave === c.chave) ? "selected" : "";
@@ -75,6 +213,8 @@ function renderizarValidacao(registro) {
 
 function atualizarTotaisValidados() {
   if (!registroAtual) return;
+
+  service.salvarNoLocalStorage();
 
   const totalMinutos = registroAtual.totalMinutos;
   document.getElementById("val-total").textContent = fmtHoras(totalMinutos);
@@ -132,35 +272,34 @@ document.getElementById("val-tabela-body").addEventListener("click", (e) => {
   renderizarValidacao(registroAtual);
 });
 
-// Adicionar Lançamento Manual
 document.getElementById("btn-adicionar-lancamento").addEventListener("click", () => {
   if (!registroAtual) return;
   registroAtual.lancamentos.push(new Lancamento(60, "Atividade extra", CARDS[0]));
   renderizarValidacao(registroAtual);
 });
 
-// Relatório Geral
+// Relatório Consolidado Mês a Mês
 function atualizarTabelaGeral() {
-  const { totais, quantidades } = service.totalPorColaborador();
+  const mesSelecionado = filtroMes ? filtroMes.value : "";
+  const dadosMensais = service.consolidadoMensal(mesSelecionado);
   const tbody = document.getElementById("totais-tabela-body");
+  if (!tbody) return;
   tbody.innerHTML = "";
 
-  const colabs = Object.keys(totais).sort();
-  if (colabs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center">Nenhum dado registrado até o momento.</td></tr>`;
+  if (dadosMensais.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center">Nenhum dado registrado para o período selecionado.</td></tr>`;
     return;
   }
 
-  for (const colab of colabs) {
-    const totalMin = totais[colab];
-    const qtd = quantidades[colab];
-    const media = totalMin / qtd;
+  for (const item of dadosMensais) {
+    const media = item.totalMinutos / item.dias;
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><strong>${colab}</strong></td>
-      <td>${qtd} registro(s)</td>
-      <td>${fmtHoras(totalMin)}</td>
+      <td><span class="badge badge-success" style="font-size: 0.8rem;">${fmtMesAno(item.mesAno)}</span></td>
+      <td><strong>${item.colaborador}</strong></td>
+      <td>${item.dias} dia(s)</td>
+      <td><strong>${fmtHoras(item.totalMinutos)}</strong></td>
       <td>${fmtHoras(media)} / dia</td>
     `;
     tbody.appendChild(tr);
@@ -176,7 +315,18 @@ document.getElementById("form-apontamento").addEventListener("submit", (e) => {
 
   if (!colab || !msg) return;
 
-  const reg = service.receberMensagem(colab, msg, dia);
+  let reg = service.obterRegistro(colab, dia);
+
+  if (!reg) {
+    reg = service.receberMensagem(colab, msg, dia);
+  } else {
+    const lancamentosBrutos = interpretarMensagem(msg);
+    lancamentosBrutos.forEach(l => {
+      reg.lancamentos.push(new Lancamento(l.minutos, l.trecho, l.card));
+    });
+    service.salvarNoLocalStorage();
+  }
+
   renderizarValidacao(reg);
   trocarAba("tab-validacao");
 });
@@ -190,8 +340,19 @@ document.getElementById("btn-demo").addEventListener("click", () => {
   const item = demos[Math.floor(Math.random() * demos.length)];
   document.getElementById("colaborador").value = item.colab;
   document.getElementById("mensagem").value = item.msg;
+  const diaAtual = campoDia.value || new Date().toISOString().split('T')[0];
 
-  const reg = service.receberMensagem(item.colab, item.msg, campoDia.value);
+  let reg = service.obterRegistro(item.colab, diaAtual);
+  if (!reg) {
+    reg = service.receberMensagem(item.colab, item.msg, diaAtual);
+  } else {
+    const lancamentosBrutos = interpretarMensagem(item.msg);
+    lancamentosBrutos.forEach(l => {
+      reg.lancamentos.push(new Lancamento(l.minutos, l.trecho, l.card));
+    });
+    service.salvarNoLocalStorage();
+  }
+
   renderizarValidacao(reg);
   trocarAba("tab-validacao");
 });
@@ -232,3 +393,63 @@ document.getElementById("btn-salvar-jira").addEventListener("click", () => {
   modal.classList.add("hidden");
   alert("Configurações salvas com sucesso!");
 });
+
+// --- Captação de Áudio (Speech-to-Text) ---
+const btnMic = document.getElementById("btn-mic");
+const campoMensagem = document.getElementById("mensagem");
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (!SpeechRecognition) {
+  if (btnMic) {
+    btnMic.style.display = "none";
+  }
+} else {
+  const recognition = new SpeechRecognition();
+  recognition.lang = "pt-BR";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  let gravando = false;
+
+  btnMic.addEventListener("click", () => {
+    if (gravando) {
+      recognition.stop();
+      return;
+    }
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error("Erro ao iniciar reconhecimento:", e);
+    }
+  });
+
+  recognition.onstart = () => {
+    gravando = true;
+    btnMic.classList.add("btn-primary");
+    btnMic.classList.remove("btn-secondary");
+    btnMic.innerHTML = '<i class="fa-solid fa-microphone-lines fa-fade"></i> Ouvindo...';
+  };
+
+  recognition.onresult = (event) => {
+    const textoFalado = event.results[0][0].transcript;
+    if (campoMensagem.value.trim() !== "") {
+      campoMensagem.value += " " + textoFalado;
+    } else {
+      campoMensagem.value = textoFalado;
+    }
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Erro no reconhecimento de voz:", event.error);
+    alert("Não foi possível capturar o áudio. Verifique as permissões do microfone.");
+  };
+
+  recognition.onend = () => {
+    gravando = false;
+    btnMic.classList.remove("btn-primary");
+    btnMic.classList.add("btn-secondary");
+    btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i> Falar Relato';
+  };
+}

@@ -34,27 +34,99 @@ class RegistroDiario {
 class ApontamentoService {
   constructor() {
     this.registros = new Map();
+    this.carregarDoLocalStorage();
   }
 
   receberMensagem(colaborador, mensagem, diaStr) {
     const lancamentosBrutos = interpretarMensagem(mensagem);
     const lancamentos = lancamentosBrutos.map(l => new Lancamento(l.minutos, l.trecho, l.card));
     const registro = new RegistroDiario(colaborador, diaStr, lancamentos);
+    
     const chave = `${colaborador}_${diaStr}`;
     this.registros.set(chave, registro);
+    this.salvarNoLocalStorage();
+    
     return registro;
   }
 
-  totalPorColaborador() {
-    const totais = {};
-    const quantidades = {};
+  obterRegistro(colaborador, diaStr) {
+    const chave = `${colaborador}_${diaStr}`;
+    return this.registros.get(chave) || null;
+  }
+
+  salvarNoLocalStorage() {
+    const dadosObj = {};
+    for (const [chave, reg] of this.registros.entries()) {
+      dadosObj[chave] = {
+        colaborador: reg.colaborador,
+        dia: reg.dia,
+        lancamentos: reg.lancamentos.map(l => ({
+          minutos: l.minutos,
+          trecho: l.trecho,
+          card: l.card ? { chave: l.card.chave, nome: l.card.nome, palavrasChave: l.card.palavrasChave } : null
+        }))
+      };
+    }
+    localStorage.setItem("apontamentos_historico", JSON.stringify(dadosObj));
+  }
+
+  carregarDoLocalStorage() {
+    const salvo = localStorage.getItem("apontamentos_historico");
+    if (!salvo) return;
+
+    try {
+      const dadosObj = JSON.parse(salvo);
+      for (const [chave, dados] of Object.entries(dadosObj)) {
+        const lancamentos = dados.lancamentos.map(l => {
+          let cardObj = null;
+          if (l.card) {
+            cardObj = CARDS.find(c => c.chave === l.card.chave) || new Card(l.card.chave, l.card.nome, l.card.palavrasChave);
+          }
+          return new Lancamento(l.minutos, l.trecho, cardObj);
+        });
+        const reg = new RegistroDiario(dados.colaborador, dados.dia, lancamentos);
+        this.registros.set(chave, reg);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar histórico do localStorage:", e);
+    }
+  }
+
+  // Agrupa e consolida os registros por Mês/Ano (YYYY-MM) e Colaborador
+  consolidadoMensal(filtroMes = "") {
+    const agrupado = [];
+    const mapa = new Map();
 
     for (const [_, reg] of this.registros.entries()) {
-      totais[reg.colaborador] = (totais[reg.colaborador] || 0) + reg.totalMinutos;
-      quantidades[reg.colaborador] = (quantidades[reg.colaborador] || 0) + 1;
+      if (!reg.dia || reg.lancamentos.length === 0) continue;
+
+      const mesAno = reg.dia.substring(0, 7); // Extrai "YYYY-MM"
+      if (filtroMes && mesAno !== filtroMes) continue;
+
+      const chaveGrupo = `${mesAno}_${reg.colaborador}`;
+      if (!mapa.has(chaveGrupo)) {
+        mapa.set(chaveGrupo, {
+          mesAno: mesAno,
+          colaborador: reg.colaborador,
+          dias: 0,
+          totalMinutos: 0
+        });
+      }
+
+      const item = mapa.get(chaveGrupo);
+      item.dias += 1;
+      item.totalMinutos += reg.totalMinutos;
     }
 
-    return { totais, quantidades };
+    for (const item of mapa.values()) {
+      agrupado.push(item);
+    }
+
+    // Ordena do mês mais recente para o mais antigo e depois por nome do colaborador
+    return agrupado.sort((a, b) => {
+      if (a.mesAno !== b.mesAno) return b.mesAno.localeCompare(a.mesAno);
+      return a.colaborador.localeCompare(b.colaborador);
+    });
   }
 }
 
@@ -83,7 +155,7 @@ async function enviarAoJira(registro, config) {
     };
 
     if (!url || !email || !token) {
-      logs.push(`[SIMULADO] ${chave}: ${(minutos / 60).toFixed(1)}h registradas para ${registro.colaborador}`);
+      logs.push(`[SIMULADO] ${chave}: ${(minutos / 60).toFixed(1)}h registradas para ${registro.colaborador} em ${registro.dia}`);
       continue;
     }
 

@@ -1,217 +1,510 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Apontamento de Horas por Relato Livre</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body>
-  <!-- Modal de Autenticação (Login / Cadastro) -->
-  <div id="modal-login" class="modal">
-    <div class="modal-content" style="max-width: 400px;">
-      <h3 id="auth-titulo"><i class="fa-solid fa-lock"></i> Entrar no Sistema</h3>
-      <p class="modal-desc" id="auth-desc">Informe suas credenciais para acessar o painel.</p>
+const service = new ApontamentoService();
+let registroAtual = null;
+
+// Gestão de Usuários cadastrados no localStorage (sem perfis engessados)
+function obterUsuariosCadastrados() {
+  const salvo = localStorage.getItem("usuarios_sistema");
+  if (salvo) {
+    try { return JSON.parse(salvo); } catch(e) {}
+  }
+  // Base inicial padrão caso esteja vazio
+  const inicial = {
+    "admin": { senha: "123", perfil: "coordenador", nome: "Administrador" }
+  };
+  localStorage.setItem("usuarios_sistema", JSON.stringify(inicial));
+  return inicial;
+}
+
+function salvarUsuariosCadastrados(usuarios) {
+  localStorage.setItem("usuarios_sistema", JSON.stringify(usuarios));
+}
+
+function fmtHoras(minutos) {
+  return `${(minutos / 60).toFixed(1)}h`;
+}
+
+function fmtMesAno(mesAnoStr) {
+  if (!mesAnoStr) return "";
+  const [ano, mes] = mesAnoStr.split("-");
+  const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const nomeMes = meses[parseInt(mes, 10) - 1] || mes;
+  return `${nomeMes}/${ano}`;
+}
+
+function statusJornada(total) {
+  if (total === JORNADA_MINUTOS) {
+    return { texto: "JORNADA COMPLETA OK", classe: "badge-success" };
+  }
+  if (total < JORNADA_MINUTOS) {
+    return { texto: `ATENÇÃO: FALTAM ${fmtHoras(JORNADA_MINUTOS - total)}`, classe: "badge-warning" };
+  }
+  return { texto: `ATENÇÃO: EXCEDE EM ${fmtHoras(total - JORNADA_MINUTOS)}`, classe: "badge-danger" };
+}
+
+// Elementos DOM de Autenticação
+const campoDia = document.getElementById("dia");
+const filtroMes = document.getElementById("filtro-mes");
+const modalLogin = document.getElementById("modal-login");
+const formAuth = document.getElementById("form-auth");
+const authTitulo = document.getElementById("auth-titulo");
+const authDesc = document.getElementById("auth-desc");
+const btnSubmitAuth = document.getElementById("btn-submit-auth");
+const btnToggleModo = document.getElementById("btn-toggle-modo");
+const grupoPerfil = document.getElementById("grupo-perfil");
+const infoPerfilNome = document.getElementById("info-perfil-nome");
+const btnConfig = document.getElementById("btn-config");
+
+let modoCadastro = false;
+
+if (campoDia) {
+  campoDia.value = new Date().toISOString().split('T')[0];
+}
+
+// Alternar entre modo Login e Cadastro
+btnToggleModo.addEventListener("click", () => {
+  modoCadastro = !modoCadastro;
+  if (modoCadastro) {
+    authTitulo.innerHTML = '<i class="fa-solid fa-user-plus"></i> Criar Nova Conta';
+    authDesc.textContent = "Preencha os dados abaixo para registrar sua conta.";
+    btnSubmitAuth.textContent = "Cadastrar";
+    btnToggleModo.textContent = "Já tem conta? Faça login";
+    grupoPerfil.classList.remove("hidden");
+  } else {
+    authTitulo.innerHTML = '<i class="fa-solid fa-lock"></i> Entrar no Sistema';
+    authDesc.textContent = "Informe suas credenciais para acessar o painel.";
+    btnSubmitAuth.textContent = "Entrar";
+    btnToggleModo.textContent = "Não tem conta? Cadastre-se";
+    grupoPerfil.classList.add("hidden");
+  }
+});
+
+formAuth.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const usuarioInput = document.getElementById("auth-usuario").value.trim().toLowerCase();
+  const senhaInput = document.getElementById("auth-senha").value.trim();
+  const usuarios = obterUsuariosCadastrados();
+
+  if (modoCadastro) {
+    if (usuarios[usuarioInput]) {
+      alert("Este nome de usuário já existe. Escolha outro.");
+      return;
+    }
+    const perfilSelecionado = document.getElementById("auth-perfil").value;
+    usuarios[usuarioInput] = {
+      senha: senhaInput,
+      perfil: perfilSelecionado,
+      nome: usuarioInput.charAt(0).toUpperCase() + usuarioInput.slice(1)
+    };
+    salvarUsuariosCadastrados(usuarios);
+    alert("Conta criada com sucesso! Faça login para continuar.");
+    btnToggleModo.click(); // Retorna para a tela de login
+    document.getElementById("auth-usuario").value = "";
+    document.getElementById("auth-senha").value = "";
+  } else {
+    if (usuarios[usuarioInput] && usuarios[usuarioInput].senha === senhaInput) {
+      localStorage.setItem("sessao_usuario", usuarioInput);
+      verificarSessao();
+      document.getElementById("auth-senha").value = "";
+    } else {
+      alert("Usuário ou senha incorretos.");
+    }
+  }
+});
+
+function verificarSessao() {
+  const usuarioSalvo = localStorage.getItem("sessao_usuario");
+  const usuarios = obterUsuariosCadastrados();
+  if (usuarioSalvo && usuarios[usuarioSalvo]) {
+    const userObj = usuarios[usuarioSalvo];
+    modalLogin.classList.add("hidden");
+    infoPerfilNome.textContent = `${userObj.nome} (${userObj.perfil.toUpperCase()})`;
+    aplicarPermissoesPerfil(userObj.perfil);
+  } else {
+    modalLogin.classList.remove("hidden");
+  }
+}
+
+function aplicarPermissoesPerfil(perfil) {
+  const botoesAbas = document.querySelectorAll(".tab-btn");
+  let primeiraVisivel = null;
+
+  botoesAbas.forEach(btn => {
+    const perfisPermitidos = btn.getAttribute("data-perfis").split(",");
+    if (perfisPermitidos.includes(perfil)) {
+      btn.style.display = "inline-flex";
+      if (!primeiraVisivel) primeiraVisivel = btn;
+    } else {
+      btn.style.display = "none";
+    }
+  });
+
+  if (btnConfig) {
+    if (perfil === "coordenador") {
+      btnConfig.classList.remove("hidden");
+    } else {
+      btnConfig.classList.add("hidden");
+    }
+  }
+
+  if (primeiraVisivel) {
+    const abaAlvo = primeiraVisivel.getAttribute("data-tab");
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+    
+    primeiraVisivel.classList.add("active");
+    const conteudo = document.getElementById(abaAlvo);
+    if (conteudo) conteudo.classList.add("active");
+
+    if (abaAlvo === "tab-relatorio") {
+      atualizarTabelaGeral();
+    }
+  }
+}
+
+document.getElementById("btn-logout").addEventListener("click", () => {
+  localStorage.removeItem("sessao_usuario");
+  window.location.reload();
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+  verificarSessao();
+
+  const botoesAbas = document.querySelectorAll(".tab-btn");
+  botoesAbas.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const abaAlvo = btn.getAttribute("data-tab");
+
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
       
-      <form id="form-auth">
-        <div class="form-group">
-          <label for="auth-usuario">Nome de Usuário</label>
-          <input type="text" id="auth-usuario" placeholder="Ex: ana.silva" required>
-        </div>
-        <div class="form-group">
-          <label for="auth-senha">Senha</label>
-          <input type="password" id="auth-senha" placeholder="******" required>
-        </div>
-        
-        <!-- Campo visível apenas no modo Cadastro -->
-        <div class="form-group hidden" id="grupo-perfil">
-          <label for="auth-perfil">Perfil de Acesso</label>
-          <select id="auth-perfil">
-            <option value="funcionario">Funcionário</option>
-            <option value="rh">RH</option>
-            <option value="coordenador">Coordenador</option>
-          </select>
-        </div>
+      btn.classList.add("active");
+      const conteudo = document.getElementById(abaAlvo);
+      if (conteudo) conteudo.classList.add("active");
 
-        <div class="button-group" style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
-          <button type="submit" id="btn-submit-auth" class="btn btn-primary" style="width: 100%;">Entrar</button>
-          <button type="button" id="btn-toggle-modo" class="btn btn-secondary" style="width: 100%;">Não tem conta? Cadastre-se</button>
-        </div>
-      </form>
-    </div>
-  </div>
+      if (abaAlvo === "tab-relatorio") {
+        atualizarTabelaGeral();
+      }
+    });
+  });
 
-  <div class="app-container">
-    <header class="app-header">
-      <div class="header-title">
-        <h1><i class="fa-solid fa-clock-rotate-left"></i> Sistema de Apontamento de Horas</h1>
-        <p>Usuário: <strong id="info-perfil-nome" style="color: var(--primary-color);">Nenhum</strong></p>
-      </div>
-      <div style="display: flex; gap: 8px;">
-        <button id="btn-config" class="btn btn-secondary hidden"><i class="fa-solid fa-gear"></i> Jira</button>
-        <button id="btn-logout" class="btn btn-secondary"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
-      </div>
-    </header>
+  if (filtroMes) {
+    filtroMes.addEventListener("change", () => atualizarTabelaGeral());
+  }
 
-    <!-- Navegação por Abas (Dinâmica por Perfil) -->
-    <nav class="nav-tabs" id="nav-abas">
-      <button class="tab-btn active" data-tab="tab-novo" data-perfis="funcionario,coordenador"><i class="fa-solid fa-pen-to-square"></i> Novo Relato</button>
-      <button class="tab-btn" data-tab="tab-validacao" data-perfis="funcionario,coordenador"><i class="fa-solid fa-list-check"></i> Validação Diária</button>
-      <button class="tab-btn" data-tab="tab-relatorio" data-perfis="rh,coordenador"><i class="fa-solid fa-chart-bar"></i> Relatório Mensal / Geral</button>
-    </nav>
+  const btnLimparFiltro = document.getElementById("btn-limpar-filtro-mes");
+  if (btnLimparFiltro) {
+    btnLimparFiltro.addEventListener("click", () => {
+      if (filtroMes) filtroMes.value = "";
+      atualizarTabelaGeral();
+    });
+  }
 
-    <!-- Aba 1: Novo Relato -->
-    <section id="tab-novo" class="tab-content active">
-      <div class="card">
-        <h2><i class="fa-solid fa-comment-dots"></i> Inserir Relato do Colaborador</h2>
-        <form id="form-apontamento">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="colaborador">Colaborador</label>
-              <input type="text" id="colaborador" placeholder="Ex: Ana, Bruno, Carla..." required>
-            </div>
-            <div class="form-group">
-              <label for="dia">Data do Apontamento</label>
-              <input type="date" id="dia" required>
-            </div>
-          </div>
+  atualizarTabelaGeral();
+});
 
-          <div class="form-group">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <label for="mensagem">Relato Livre do Dia</label>
-              <button type="button" id="btn-mic" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;">
-                <i class="fa-solid fa-microphone"></i> Falar Relato
-              </button>
-            </div>
-            <textarea id="mensagem" rows="6" placeholder="Ex: Hoje passei 2 horas na reunião do Pix, depois fiquei 4 horas desenvolvendo a tela do aplicativo e no final do dia gastei 2 horas resolvendo o erro do suporte." required></textarea>
-          </div>
+function trocarAba(idAba) {
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    if (b.dataset.tab === idAba && b.style.display !== "none") {
+      b.classList.add("active");
+    } else {
+      b.classList.remove("active");
+    }
+  });
+  document.querySelectorAll(".tab-content").forEach(c => {
+    c.classList.toggle("active", c.id === idAba);
+  });
+  if (idAba === "tab-relatorio") {
+    atualizarTabelaGeral();
+  }
+}
 
-          <div class="button-group">
-            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-calculator"></i> Interpretar e Processar</button>
-            <button type="button" id="btn-demo" class="btn btn-secondary"><i class="fa-solid fa-flask"></i> Carregar Demonstração</button>
-          </div>
-        </form>
-      </div>
-    </section>
+// Renderização da Validação
+function renderizarValidacao(registro) {
+  registroAtual = registro;
+  const placeholder = document.getElementById("validacao-placeholder");
+  const conteudo = document.getElementById("validacao-conteudo");
 
-    <!-- Aba 2: Validação Diária -->
-    <section id="tab-validacao" class="tab-content">
-      <div class="card">
-        <h2><i class="fa-solid fa-list-check"></i> Validação Diária e Ajustes</h2>
-        
-        <div id="validacao-placeholder" class="placeholder">
-          <i class="fa-solid fa-file-invoice fa-3x"></i>
-          <p>Nenhum relato processado ainda. Vá na aba "Novo Relato" para começar.</p>
-        </div>
+  if (!registro || registro.lancamentos.length === 0) {
+    placeholder.classList.remove("hidden");
+    conteudo.classList.add("hidden");
+    return;
+  }
 
-        <div id="validacao-conteudo" class="hidden">
-          <div class="info-header">
-            <p><strong>Colaborador:</strong> <span id="val-colaborador"></span></p>
-            <p><strong>Data:</strong> <span id="val-dia"></span></p>
-          </div>
+  placeholder.classList.add("hidden");
+  conteudo.classList.remove("hidden");
 
-          <div class="table-container">
-            <table class="table-apontamentos">
-              <thead>
-                <tr>
-                  <th>Trecho Identificado</th>
-                  <th>Card Jira Associado</th>
-                  <th>Duração (Minutos / Horas)</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody id="val-tabela-body">
-                <!-- Preenchido dinamicamente -->
-              </tbody>
-            </table>
-          </div>
+  document.getElementById("val-colaborador").textContent = registro.colaborador;
+  document.getElementById("val-dia").textContent = registro.dia.split("-").reverse().join("/");
 
-          <button type="button" id="btn-adicionar-lancamento" class="btn btn-secondary" style="margin-bottom: 16px;">
-            <i class="fa-solid fa-plus"></i> Adicionar Lançamento Manual
-          </button>
+  const tbody = document.getElementById("val-tabela-body");
+  tbody.innerHTML = "";
 
-          <div id="status-jornada-box" class="status-box">
-            <span>TOTAL DO DIA: <strong id="val-total"></strong> / 8.0h</span>
-            <div id="val-status-badge" class="badge"></div>
-          </div>
+  registro.lancamentos.forEach((lanc, index) => {
+    const tr = document.createElement("tr");
 
-          <div id="alert-alerta" class="alert alert-warning hidden">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <span>Existem lançamentos não identificados. Atribua um card válido para prosseguir.</span>
-          </div>
+    let optionsCard = `<option value="">-- Não Identificado --</option>`;
+    CARDS.forEach(c => {
+      const selected = (lanc.card && lanc.card.chave === c.chave) ? "selected" : "";
+      optionsCard += `<option value="${c.chave}" ${selected}>Card ${c.chave} - ${c.nome}</option>`;
+    });
 
-          <div class="button-group right-align">
-            <button id="btn-confirmar-jira" class="btn btn-success">
-              <i class="fa-brands fa-jira"></i> Confirmar e Enviar ao Jira
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
+    tr.innerHTML = `
+      <td><input type="text" value="${lanc.trecho}" data-index="${index}" class="edit-trecho" style="width:100%"></td>
+      <td><select data-index="${index}" class="edit-card">${optionsCard}</select></td>
+      <td><input type="number" value="${lanc.minutos}" data-index="${index}" class="edit-minutos" min="5" step="5" style="width:90px"> min</td>
+      <td><button type="button" class="btn-danger-icon btn-remover" data-index="${index}"><i class="fa-solid fa-trash"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+  });
 
-    <!-- Aba 3: Relatório Mensal e Geral -->
-    <section id="tab-relatorio" class="tab-content">
-      <div class="card">
-        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px;">
-          <h2 style="margin-bottom: 0;"><i class="fa-solid fa-calendar-check"></i> Relatório Consolidado Mês a Mês</h2>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <label for="filtro-mes" style="font-size: 0.85rem; font-weight: 600; color: var(--secondary-color);">Filtrar Mês:</label>
-            <input type="month" id="filtro-mes" style="width: auto; padding: 6px 10px;">
-            <button type="button" id="btn-limpar-filtro-mes" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.8rem;">Todos</button>
-          </div>
-        </div>
+  atualizarTotaisValidados();
+}
 
-        <div class="table-container">
-          <table class="table-totais">
-            <thead>
-              <tr>
-                <th>Mês / Ano</th>
-                <th>Colaborador</th>
-                <th>Dias Apontados</th>
-                <th>Horas Consolidadas</th>
-                <th>Média Diária</th>
-              </tr>
-            </thead>
-            <tbody id="totais-tabela-body">
-              <tr>
-                <td colspan="5" class="text-center">Nenhum dado registrado até o momento.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+function atualizarTotaisValidados() {
+  if (!registroAtual) return;
 
-    <!-- Modal de Configuração do Jira -->
-    <div id="modal-jira" class="modal hidden">
-      <div class="modal-content">
-        <h3><i class="fa-solid fa-gear"></i> Configurações da API do Jira</h3>
-        <p class="modal-desc">Configure sua instância corporativa ou deixe em branco para operar em modo de simulação segura.</p>
-        <div class="form-group">
-          <label for="jira-url">URL Base do Jira</label>
-          <input type="url" id="jira-url" placeholder="https://sua-empresa.atlassian.net">
-        </div>
-        <div class="form-group">
-          <label for="jira-email">E-mail de Acesso</label>
-          <input type="email" id="jira-email" placeholder="seu-email@empresa.com">
-        </div>
-        <div class="form-group">
-          <label for="jira-token">Token de API</label>
-          <input type="password" id="jira-token" placeholder="Token gerado na Atlassian">
-        </div>
-        <div class="modal-actions">
-          <button id="btn-fechar-modal" class="btn btn-secondary">Cancelar</button>
-          <button id="btn-salvar-jira" class="btn btn-primary">Salvar Configurações</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  service.salvarNoLocalStorage();
 
-  <!-- Scripts Modulares -->
-  <script src="cards.js"></script>
-  <script src="parser.js"></script>
-  <script src="service.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>
+  const totalMinutos = registroAtual.totalMinutos;
+  document.getElementById("val-total").textContent = fmtHoras(totalMinutos);
+  
+  const st = statusJornada(totalMinutos);
+  const badge = document.getElementById("val-status-badge");
+  badge.textContent = st.texto;
+  badge.className = `badge ${st.classe}`;
+
+  const alerta = document.getElementById("alert-alerta");
+  const btnEnviar = document.getElementById("btn-confirmar-jira");
+
+  if (registroAtual.naoIdentificados.length > 0) {
+    alerta.classList.remove("hidden");
+    btnEnviar.disabled = true;
+    btnEnviar.style.opacity = "0.6";
+  } else {
+    alerta.classList.add("hidden");
+    btnEnviar.disabled = false;
+    btnEnviar.style.opacity = "1";
+  }
+
+  atualizarTabelaGeral();
+}
+
+// Eventos de Edição Dinâmica na Tabela
+document.getElementById("val-tabela-body").addEventListener("input", (e) => {
+  const index = parseInt(e.target.dataset.index, 10);
+  if (isNaN(index)) return;
+
+  if (e.target.classList.contains("edit-minutos")) {
+    registroAtual.lancamentos[index].minutos = parseInt(e.target.value || 0, 10);
+  } else if (e.target.classList.contains("edit-trecho")) {
+    registroAtual.lancamentos[index].trecho = e.target.value;
+  }
+  atualizarTotaisValidados();
+});
+
+document.getElementById("val-tabela-body").addEventListener("change", (e) => {
+  const index = parseInt(e.target.dataset.index, 10);
+  if (isNaN(index)) return;
+
+  if (e.target.classList.contains("edit-card")) {
+    const chave = e.target.value;
+    registroAtual.lancamentos[index].card = CARDS.find(c => c.chave === chave) || null;
+    atualizarTotaisValidados();
+  }
+});
+
+document.getElementById("val-tabela-body").addEventListener("click", (e) => {
+  const btnRemover = e.target.closest(".btn-remover");
+  if (!btnRemover) return;
+  const index = parseInt(btnRemover.dataset.index, 10);
+  registroAtual.lancamentos.splice(index, 1);
+  renderizarValidacao(registroAtual);
+});
+
+document.getElementById("btn-adicionar-lancamento").addEventListener("click", () => {
+  if (!registroAtual) return;
+  registroAtual.lancamentos.push(new Lancamento(60, "Atividade extra", CARDS[0]));
+  renderizarValidacao(registroAtual);
+});
+
+// Relatório Consolidado Mês a Mês
+function atualizarTabelaGeral() {
+  const mesSelecionado = filtroMes ? filtroMes.value : "";
+  const dadosMensais = service.consolidadoMensal(mesSelecionado);
+  const tbody = document.getElementById("totais-tabela-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  if (dadosMensais.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center">Nenhum dado registrado para o período selecionado.</td></tr>`;
+    return;
+  }
+
+  for (const item of dadosMensais) {
+    const media = item.totalMinutos / item.dias;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><span class="badge badge-success" style="font-size: 0.8rem;">${fmtMesAno(item.mesAno)}</span></td>
+      <td><strong>${item.colaborador}</strong></td>
+      <td>${item.dias} dia(s)</td>
+      <td><strong>${fmtHoras(item.totalMinutos)}</strong></td>
+      <td>${fmtHoras(media)} / dia</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+// Eventos de Formulário e Demonstração
+document.getElementById("form-apontamento").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const colab = document.getElementById("colaborador").value.trim();
+  const dia = document.getElementById("dia").value;
+  const msg = document.getElementById("mensagem").value.trim();
+
+  if (!colab || !msg) return;
+
+  let reg = service.obterRegistro(colab, dia);
+
+  if (!reg) {
+    reg = service.receberMensagem(colab, msg, dia);
+  } else {
+    const lancamentosBrutos = interpretarMensagem(msg);
+    lancamentosBrutos.forEach(l => {
+      reg.lancamentos.push(new Lancamento(l.minutos, l.trecho, l.card));
+    });
+    service.salvarNoLocalStorage();
+  }
+
+  renderizarValidacao(reg);
+  trocarAba("tab-validacao");
+});
+
+document.getElementById("btn-demo").addEventListener("click", () => {
+  const demos = [
+    { colab: "Ana", msg: "Hoje passei 2 horas na reunião do Pix, depois fiquei 4 horas desenvolvendo a tela do aplicativo e no final do dia gastei 2 horas resolvendo o erro do suporte." },
+    { colab: "Bruno", msg: "Fiz reunião do Pix por 1h30, desenvolvi o app por 5 horas e atendi chamado de suporte por uma hora e meia." },
+    { colab: "Carla", msg: "Fiquei 3 horas no suporte, 2h testando uma coisa e meia hora na reunião do Pix." }
+  ];
+  const item = demos[Math.floor(Math.random() * demos.length)];
+  document.getElementById("colaborador").value = item.colab;
+  document.getElementById("mensagem").value = item.msg;
+  const diaAtual = campoDia.value || new Date().toISOString().split('T')[0];
+
+  let reg = service.obterRegistro(item.colab, diaAtual);
+  if (!reg) {
+    reg = service.receberMensagem(item.colab, item.msg, diaAtual);
+  } else {
+    const lancamentosBrutos = interpretarMensagem(item.msg);
+    lancamentosBrutos.forEach(l => {
+      reg.lancamentos.push(new Lancamento(l.minutos, l.trecho, l.card));
+    });
+    service.salvarNoLocalStorage();
+  }
+
+  renderizarValidacao(reg);
+  trocarAba("tab-validacao");
+});
+
+// Envio ao Jira
+document.getElementById("btn-confirmar-jira").addEventListener("click", async () => {
+  if (!registroAtual) return;
+
+  const config = {
+    url: localStorage.getItem("jira_url") || "",
+    email: localStorage.getItem("jira_email") || "",
+    token: localStorage.getItem("jira_token") || ""
+  };
+
+  try {
+    const logs = await enviarAoJira(registroAtual, config);
+    alert("Operação realizada com sucesso:\n\n" + logs.join("\n"));
+  } catch (err) {
+    alert(`Erro ao enviar: ${err.message}`);
+  }
+});
+
+// Modal de Configurações
+const modal = document.getElementById("modal-jira");
+document.getElementById("btn-config").addEventListener("click", () => {
+  document.getElementById("jira-url").value = localStorage.getItem("jira_url") || "";
+  document.getElementById("jira-email").value = localStorage.getItem("jira_email") || "";
+  document.getElementById("jira-token").value = localStorage.getItem("jira_token") || "";
+  modal.classList.remove("hidden");
+});
+
+document.getElementById("btn-fechar-modal").addEventListener("click", () => modal.classList.add("hidden"));
+
+document.getElementById("btn-salvar-jira").addEventListener("click", () => {
+  localStorage.setItem("jira_url", document.getElementById("jira-url").value.trim());
+  localStorage.setItem("jira_email", document.getElementById("jira-email").value.trim());
+  localStorage.setItem("jira_token", document.getElementById("jira-token").value.trim());
+  modal.classList.add("hidden");
+  alert("Configurações salvas com sucesso!");
+});
+
+// --- Captação de Áudio (Speech-to-Text) ---
+const btnMic = document.getElementById("btn-mic");
+const campoMensagem = document.getElementById("mensagem");
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (!SpeechRecognition) {
+  if (btnMic) {
+    btnMic.style.display = "none";
+  }
+} else {
+  const recognition = new SpeechRecognition();
+  recognition.lang = "pt-BR";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  let gravando = false;
+
+  btnMic.addEventListener("click", () => {
+    if (gravando) {
+      recognition.stop();
+      return;
+    }
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error("Erro ao iniciar reconhecimento:", e);
+      try { recognition.stop(); } catch (err) {}
+    }
+  });
+
+  recognition.onstart = () => {
+    gravando = true;
+    btnMic.classList.add("btn-primary");
+    btnMic.classList.remove("btn-secondary");
+    btnMic.innerHTML = '<i class="fa-solid fa-microphone-lines fa-fade"></i> Ouvindo...';
+  };
+
+  recognition.onresult = (event) => {
+    const textoFalado = event.results[0][0].transcript;
+    if (campoMensagem.value.trim() !== "") {
+      campoMensagem.value += " " + textoFalado;
+    } else {
+      campoMensagem.value = textoFalado;
+    }
+  };
+
+  recognition.onerror = (event) => {
+    console.error("Erro no reconhecimento de voz:", event.error);
+    if (event.error === "not-allowed") {
+      alert("Acesso ao microfone negado. Permita o uso do microfone nas configurações do navegador.");
+    } else if (event.error !== "no-speech") {
+      alert(`Erro na captação de áudio: ${event.error}`);
+    }
+  };
+
+  recognition.onend = () => {
+    gravando = false;
+    btnMic.classList.remove("btn-primary");
+    btnMic.classList.add("btn-secondary");
+    btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i> Falar Relato';
+  };
+}

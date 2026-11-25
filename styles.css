@@ -37,7 +37,6 @@ body {
   margin: 0 auto;
 }
 
-/* Cabeçalho Responsivo */
 .app-header {
   display: flex;
   flex-wrap: wrap;
@@ -76,7 +75,6 @@ body {
   }
 }
 
-/* Navegação por Abas Flexível */
 .nav-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -185,7 +183,7 @@ input[type="number"],
 select,
 textarea {
   width: 100%;
-  padding: 10px 12px; /* Aumentado para facilitar o toque em mobile */
+  padding: 10px 12px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 0.9rem;
@@ -276,7 +274,6 @@ textarea {
   }
 }
 
-/* Tabelas Responsivas com Rolagem Horizontal */
 .table-container {
   width: 100%;
   overflow-x: auto;
@@ -288,7 +285,7 @@ textarea {
 
 .table-apontamentos, .table-totais {
   width: 100%;
-  min-width: 600px; /* Garante espaço para os inputs e selects sem esmagar */
+  min-width: 600px;
   border-collapse: collapse;
 }
 
@@ -360,7 +357,6 @@ textarea {
 .hidden { display: none !important; }
 .text-center { text-align: center; }
 
-/* Modal Responsivo */
 .modal {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
